@@ -1,0 +1,11 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import StationBoardApp from "../../components/StationBoardApp";
+
+const { id } = Astro.params;
+const stationName = Astro.url.searchParams.get("name") || "Stazione";
+---
+
+<Layout title={`${stationName} - LiveTrain`}>
+  <StationBoardApp client:load placeId={id!} initialName={stationName} />
+</Layout>

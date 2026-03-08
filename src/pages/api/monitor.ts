@@ -7,7 +7,7 @@ import type {
   NextStop,
 } from "../../types/types";
 
-export async function GET({ request }: APIContext): Promise<Response> {
+export async function GET({ request, locals }: APIContext): Promise<Response> {
   const turnstileToken = request.headers.get("X-Turnstile-Token");
 
   if (!turnstileToken) {
@@ -20,7 +20,9 @@ export async function GET({ request }: APIContext): Promise<Response> {
     );
   }
 
-  const secretKey = import.meta.env.TURNSTILE_SECRET_KEY;
+  const runtimeEnv = (locals as any)?.runtime?.env || {};
+  const secretKey =
+    runtimeEnv.TURNSTILE_SECRET_KEY || import.meta.env.TURNSTILE_SECRET_KEY;
   const formData = new URLSearchParams();
   formData.append("secret", secretKey);
   formData.append("response", turnstileToken);

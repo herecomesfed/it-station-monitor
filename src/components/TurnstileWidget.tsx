@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface TurnstileProps {
   onSuccess: (token: string) => void;
@@ -7,6 +7,7 @@ interface TurnstileProps {
 export default function TurnstileWidget({ onSuccess }: TurnstileProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
+  const [shouldShow, setShouldShow] = useState(false);
 
   useEffect(() => {
     const renderWidget = () => {
@@ -15,8 +16,12 @@ export default function TurnstileWidget({ onSuccess }: TurnstileProps) {
       if (turnstile && containerRef.current && !widgetIdRef.current) {
         widgetIdRef.current = turnstile.render(containerRef.current, {
           sitekey: import.meta.env.PUBLIC_TURNSTILE_SITE_KEY,
+          "before-interactive": () => {
+            setShouldShow(true);
+          },
           callback: (token: string) => {
             onSuccess(token);
+            setShouldShow(false);
           },
         });
       }
@@ -43,5 +48,14 @@ export default function TurnstileWidget({ onSuccess }: TurnstileProps) {
     };
   }, [onSuccess]);
 
-  return <div ref={containerRef} className="hidden" />;
+  return (
+    <div
+      className={`flex flex-col items-center justify-center py-4 animate-in fade-in duration-500 ${!shouldShow ? "hidden" : ""}`}
+    >
+      <p className="text-xs text-muted-foreground mb-2 font-medium">
+        Verifica di sicurezza richiesta per proseguire:
+      </p>
+      <div ref={containerRef} />
+    </div>
+  );
 }

@@ -97,7 +97,6 @@ export default function StationBoard({
         const json: ResponseDto<BoardData> = await res.json();
 
         if (json.success && json.data) {
-          // NUOVO 4: Salviamo i dati freschi nella nostra memoria a lungo termine
           stationCache.set(cacheKey, json.data);
           setData(json.data);
           setError(null);
@@ -128,6 +127,10 @@ export default function StationBoard({
     );
   }, [data, searchQuery]);
 
+  /**
+   * Function to render the content based on condition
+   * @returns empty box if error, empty box if no trains available, skeleton if loading, train cards if success
+   */
   const renderContent = () => {
     if (isLoading && !data) {
       return (

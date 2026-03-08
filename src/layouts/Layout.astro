@@ -22,6 +22,11 @@ import "@fontsource/inter/700.css";
     <meta name="robots" content="noindex, nofollow" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
+    <script
+      is:inline
+      src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+      async
+      defer></script>
   </head>
   <body class="bg-background font-['Inter',sans-serif] text-slate-900">
     <AppHeader showBackButton={showBackButton} />

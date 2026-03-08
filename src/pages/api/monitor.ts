@@ -8,6 +8,54 @@ import type {
 } from "../../types/types";
 
 export async function GET({ request }: APIContext): Promise<Response> {
+  const turnstileToken = request.headers.get("X-Turnstile-Token");
+
+  if (!turnstileToken) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "Access Denied",
+      }),
+      { status: 403, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
+  const secretKey = import.meta.env.TURNSTILE_SECRET_KEY;
+  const formData = new URLSearchParams();
+  formData.append("secret", secretKey);
+  formData.append("response", turnstileToken);
+
+  try {
+    const verifyResponse = await fetch(
+      "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+      {
+        method: "POST",
+        body: formData,
+      },
+    );
+
+    const verification = await verifyResponse.json();
+
+    if (!verification.success) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: "Security Check Failed",
+        }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
+  } catch (err) {
+    console.error("Turnstile verification error:", err);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "Internal Error during security check.",
+      }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
+
   const url = new URL(request.url);
   const placeId = url.searchParams.get("placeId") || "2416";
 

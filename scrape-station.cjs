@@ -2433,10 +2433,10 @@ const htmlSource = `
 <option value="3131">ZAPPULLA</option>
 <option value="3134">ZINASCO NUOVO</option>
 <option value="344">ZOAGLI</option>
-`; // ... aggiungi tutte le altre righe qui dentro
+`;
 
 /**
- * Normalizza il testo: "ROMA TERMINI" -> "Roma Termini"
+ * Normalize Text
  */
 function toTitleCase(str) {
   if (!str) return "";
@@ -2444,25 +2444,25 @@ function toTitleCase(str) {
   return (
     str
       .toLowerCase()
-      // 1. Sostituisce il backtick di RFI (\`) con l'apostrofo standard (')
+      // Replace backticks with standard apostrophes
       .replace(/`/g, "'")
       .split(" ")
       .map((word) => {
-        // 2. Gestisce le abbreviazioni con il punto (es. S.MARIA -> S.Maria)
+        // 2. Handle words abbreviations
         if (word.includes(".")) {
           return word
             .split(".")
             .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
             .join(".");
         }
-        // 3. Gestisce gli apostrofi (es. D'ASTI -> D'Asti)
+        // 3. Handle apostrophes
         if (word.includes("'")) {
           return word
             .split("'")
             .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
             .join("'");
         }
-        // 4. Caso normale
+        // Default
         return word.charAt(0).toUpperCase() + word.slice(1);
       })
       .join(" ")
@@ -2473,7 +2473,7 @@ async function generateStations() {
   console.log("Parsing HTML and normalizing names...");
 
   const stations = [];
-  // Regex per estrarre value (ID) e il testo (Nome)
+  // Regex to extract name and value
   const regex = /value="(\d+)">(.+?)<\/option>/g;
   let match;
 
@@ -2487,24 +2487,23 @@ async function generateStations() {
     });
   }
 
-  // Ordinamento alfabetico
+  // Sort alphabetically
   stations.sort((a, b) => a.name.localeCompare(b.name));
 
-  // Assicurati che la cartella esista
   if (!fs.existsSync("./src/data")) {
     fs.mkdirSync("./src/data", { recursive: true });
   }
 
-  // Scrittura del file
+  // Save the file
   try {
     fs.writeFileSync(
       "./src/data/stations.json",
       JSON.stringify(stations, null, 2),
     );
-    console.log(`\n✅ Done! Generated ${stations.length} stations.`);
-    console.log(`📍 File saved in: ./src/data/stations.json`);
+    console.log(`\n Generated ${stations.length} stations.`);
+    console.log(`File saved in: ./src/data/stations.json`);
   } catch (err) {
-    console.error("❌ Error writing file:", err);
+    console.error("Error writing file:", err);
   }
 }
 

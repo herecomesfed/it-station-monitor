@@ -6,6 +6,6 @@ const { id } = Astro.params;
 const stationName = Astro.url.searchParams.get("name") || "Stazione";
 ---
 
-<Layout title={`${stationName} - LiveTrain`}>
-  <StationBoardApp client:load placeId={id!} initialName={stationName} />
+<Layout title={`${stationName} - ITStationMonitor`} showBackButton={true}>
+  <StationBoardApp client:load placeId={id!} stationName={stationName} />
 </Layout>

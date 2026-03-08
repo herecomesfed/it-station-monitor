@@ -7,13 +7,6 @@ import type {
   NextStop,
 } from "../../types/types";
 
-interface CacheEntry {
-  data: any;
-  timestamp: number;
-}
-const cache = new Map<string, CacheEntry>();
-const CACHE_DURATION = 30 * 1000;
-
 export async function GET({ request }: APIContext): Promise<Response> {
   const url = new URL(request.url);
   const placeId = url.searchParams.get("placeId") || "2416";
@@ -21,21 +14,7 @@ export async function GET({ request }: APIContext): Promise<Response> {
   const arrivalsRaw = url.searchParams.get("arrivals");
   const isArrivals = String(arrivalsRaw).toLowerCase() === "true";
 
-  const cacheKey = `${placeId}-${isArrivals ? "ARR" : "DEP"}`;
   const now = Date.now();
-
-  const cached = cache.get(cacheKey);
-  if (cached && now - cached.timestamp < CACHE_DURATION) {
-    console.log(`[CACHE HIT] Delivering: ${cacheKey}`);
-    return new Response(JSON.stringify(cached.data), {
-      status: 200,
-      headers: { "Content-Type": "application/json", "X-Cache": "HIT" },
-    });
-  }
-
-  console.log(
-    `Cache expired - Fetching fresh data for ${cacheKey} from RFI...`,
-  );
 
   const rfiParam = isArrivals ? "true" : "false";
   const targetUrl = `https://iechub.rfi.it/ArriviPartenze/ArrivalsDepartures/Monitor?placeId=${placeId}&arrivals=${rfiParam}&_t=${now}`;
@@ -100,17 +79,18 @@ export async function GET({ request }: APIContext): Promise<Response> {
       success: true,
       data: {
         stationId: placeId,
-        type: isArrivals ? "ARRIVALS" : "DEPARTURES", // <--- Tipo per l'header globale
+        type: isArrivals ? "ARRIVALS" : "DEPARTURES",
         lastUpdate: new Date().toISOString(),
         trains: trains,
       },
     };
 
-    cache.set(cacheKey, { data: responseDto, timestamp: now });
-
     return new Response(JSON.stringify(responseDto), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=30, s-maxage=30",
+      },
     });
   } catch (e) {
     console.error("Fetch error:", e);

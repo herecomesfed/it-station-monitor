@@ -2,20 +2,25 @@ import { useState, useEffect, useMemo } from "react";
 import type { ResponseDto, BoardData } from "../types/types";
 import TrainCard from "./TrainCard";
 import TrainCardSkeleton from "./TrainCardSkeleton";
-import { AlertTriangle, Search, X } from "lucide-react";
+import { AlertTriangle, Search, TrainIcon, X } from "lucide-react";
+import EmptyBox from "./EmptyBox";
 
 export default function StationBoard({
   placeId,
   isArrivals,
+  searchQuery,
 }: {
   placeId: string;
   isArrivals: boolean;
+  searchQuery: string;
 }) {
   const [data, setData] = useState<BoardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
 
+  /**
+   * Function to fetch data from Monitor API
+   */
   const fetchBoardData = async () => {
     try {
       const endpoint = `/api/monitor?placeId=${placeId}&arrivals=${isArrivals}`;
@@ -36,9 +41,11 @@ export default function StationBoard({
     }
   };
 
+  /**
+   * Refresh research after one minute if user is navigating in the app
+   */
   useEffect(() => {
     setIsLoading(true);
-    setSearchQuery("");
     fetchBoardData();
 
     const intervalId = setInterval(() => {
@@ -56,7 +63,9 @@ export default function StationBoard({
     };
   }, [placeId, isArrivals]);
 
-  // FILTRAGGIO AGGIORNATO: Ora include Numero, Stazione, Operatore e CATEGORIA (Frecciarossa, Italo, ecc)
+  /**
+   * Memoized trains for internal search
+   */
   const filteredTrains = useMemo(() => {
     if (!data?.trains) return [];
     if (!searchQuery) return data.trains;
@@ -67,14 +76,13 @@ export default function StationBoard({
         train.trainNumber.includes(query) ||
         train.station.toLowerCase().includes(query) ||
         (train.operator && train.operator.toLowerCase().includes(query)) ||
-        (train.category && train.category.toLowerCase().includes(query)), // <-- Aggiunto questo!
+        (train.category && train.category.toLowerCase().includes(query)),
     );
   }, [data, searchQuery]);
 
-  // SKELETON
   if (isLoading && !data) {
     return (
-      <div className="animate-in fade-in duration-300 mt-2">
+      <div className="animate-in fade-in duration-300 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-2">
         {[1, 2, 3, 4, 5].map((i) => (
           <TrainCardSkeleton key={i} />
         ))}
@@ -82,53 +90,37 @@ export default function StationBoard({
     );
   }
 
-  // ERRORI
+  /**
+   * If there was an error during api call
+   */
   if (error) {
     return (
-      <div className="mt-2 bg-red-50 border border-red-200 text-red-600 p-6 rounded-2xl flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-300">
-        <AlertTriangle className="w-8 h-8 mb-2" />
-        <p className="font-bold">Impossibile caricare i dati</p>
-        <p className="text-sm mt-1">{error}</p>
-      </div>
+      <EmptyBox
+        icon={AlertTriangle}
+        title="Errore nel caricamenti dei dati"
+        subtitle="Riprova più tardi"
+      />
     );
   }
 
-  // NESSUN TRENO IN STAZIONE
+  /**
+   * If there are no trains available for that station
+   */
   if (!data?.trains.length) {
     return (
-      <div className="mt-2 text-center py-20 bg-white rounded-2xl border border-slate-100 shadow-sm animate-in fade-in duration-300">
-        <p className="text-slate-500 font-medium">
-          Nessun treno previsto al momento per questa stazione.
-        </p>
-      </div>
+      <EmptyBox
+        icon={TrainIcon}
+        title="Nessun treno previsto al momento per questa stazione."
+      />
     );
   }
 
-  // RENDER TABELLONE
+  /**
+   * Else return the train or message for train not found for the specified query
+   */
   return (
     <div className="animate-in fade-in duration-500 flex flex-col gap-4 mt-2">
-      {/* BARRA DI RICERCA INTERNA */}
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input
-          type="text"
-          placeholder="Cerca per treno (es. Frecciarossa, Italo, 9612)..."
-          className="w-full pl-10 pr-10 py-3 bg-white border border-slate-200 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm font-medium text-slate-700"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        {searchQuery && (
-          <button
-            onClick={() => setSearchQuery("")}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        )}
-      </div>
-
-      {/* LISTA TRENI */}
-      <div className="space-y-3">
+      <div className="space-y-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filteredTrains.length > 0 ? (
           filteredTrains.map((train) => (
             <TrainCard key={train.id} train={train} />

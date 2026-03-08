@@ -1,39 +1,44 @@
 ---
 interface Props {
   title: string;
+  showBackButton?: boolean | undefined;
 }
-const { title } = Astro.props;
+const { title, showBackButton } = Astro.props;
 import { ClientRouter } from "astro:transitions";
 import "../styles/global.css";
+import AppHeader from "@/components/AppHeader";
+
+import "@fontsource/inter/400.css";
+import "@fontsource/inter/600.css";
+import "@fontsource/inter/700.css";
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="it">
   <head>
     <ClientRouter />
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
-      rel="stylesheet"
-    />
   </head>
-  <body class="bg-slate-50 font-['Inter',sans-serif] text-slate-900">
-    <nav
-      class="bg-white border-b border-slate-200 sticky top-0 z-50 px-4 py-3 shadow-sm"
-    >
-      <div class="max-w-md mx-auto flex items-center justify-between">
-        <span class="font-bold text-xl tracking-tight text-blue-600"
-          >RailMonitor</span
-        >
-        <div
-          class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"
-        >
-          <span class="text-xs font-bold">IT</span>
-        </div>
-      </div>
-    </nav>
+  <body class="bg-background font-['Inter',sans-serif] text-slate-900">
+    <AppHeader showBackButton={showBackButton} />
     <slot />
+    <footer
+      class="bg-background py-6 mt-8 border-t border-slate-200 dark:border-slate-800"
+    >
+      <div
+        class="w-full max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 md:px-6 lg:px-8"
+      >
+        <p class="text-muted-foreground text-xs text-center leading-relaxed">
+          Questo sito non è affiliato, sponsorizzato o approvato da RFI o
+          Trenitalia. I dati forniti hanno puro scopo informativo e non
+          costituiscono garanzia. Si prega di verificare sempre l'orario e il
+          binario sui monitor ufficiali in stazione.
+        </p>
+      </div>
+    </footer>
   </body>
 </html>

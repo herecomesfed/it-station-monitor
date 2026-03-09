@@ -7,11 +7,9 @@ interface TurnstileProps {
 export default function TurnstileWidget({ onSuccess }: TurnstileProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
-
-  // "hidden" = nascosto (opacity 0, altezza 0)
-  // "visible" = mostrato con fade-in
-  // "fading-out" = in uscita con fade-out, poi torna "hidden"
-  const [phase, setPhase] = useState<"hidden" | "visible" | "fading-out">("hidden");
+  const [phase, setPhase] = useState<"hidden" | "visible" | "fading-out">(
+    "hidden",
+  );
 
   useEffect(() => {
     const renderWidget = () => {
@@ -21,14 +19,12 @@ export default function TurnstileWidget({ onSuccess }: TurnstileProps) {
           sitekey: import.meta.env.PUBLIC_TURNSTILE_SITE_KEY,
           appearance: "interaction-only",
 
-          // Cloudflare ci avvisa PRIMA di mostrare il challenge → fade-in
           "before-interactive-callback": () => {
             setPhase("visible");
           },
 
           callback: (token: string) => {
             onSuccess(token);
-            // Avvia il fade-out
             setPhase("fading-out");
           },
 
@@ -72,7 +68,6 @@ export default function TurnstileWidget({ onSuccess }: TurnstileProps) {
         pointerEvents: isShown ? "auto" : "none",
       }}
       onTransitionEnd={() => {
-        // Quando il fade-out finisce, torna nello stato nascosto
         if (phase === "fading-out") {
           setPhase("hidden");
         }

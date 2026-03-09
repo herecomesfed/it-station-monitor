@@ -7,21 +7,33 @@ interface TurnstileProps {
 export default function TurnstileWidget({ onSuccess }: TurnstileProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
-  const [shouldShow, setShouldShow] = useState(false);
+
+  // "hidden" = nascosto (opacity 0, altezza 0)
+  // "visible" = mostrato con fade-in
+  // "fading-out" = in uscita con fade-out, poi torna "hidden"
+  const [phase, setPhase] = useState<"hidden" | "visible" | "fading-out">("hidden");
 
   useEffect(() => {
     const renderWidget = () => {
       const turnstile = (window as any).turnstile;
-
       if (turnstile && containerRef.current && !widgetIdRef.current) {
         widgetIdRef.current = turnstile.render(containerRef.current, {
           sitekey: import.meta.env.PUBLIC_TURNSTILE_SITE_KEY,
-          "before-interactive": () => {
-            setShouldShow(true);
+          appearance: "interaction-only",
+
+          // Cloudflare ci avvisa PRIMA di mostrare il challenge → fade-in
+          "before-interactive-callback": () => {
+            setPhase("visible");
           },
+
           callback: (token: string) => {
             onSuccess(token);
-            setShouldShow(false);
+            // Avvia il fade-out
+            setPhase("fading-out");
+          },
+
+          "error-callback": (err: any) => {
+            console.error("Turnstile: Errore critico", err);
           },
         });
       }
@@ -48,14 +60,27 @@ export default function TurnstileWidget({ onSuccess }: TurnstileProps) {
     };
   }, [onSuccess]);
 
+  const isShown = phase === "visible";
+
   return (
     <div
-      className={`flex flex-col items-center justify-center py-4 animate-in fade-in duration-500 ${!shouldShow ? "hidden" : ""}`}
+      style={{
+        opacity: isShown ? 1 : 0,
+        maxHeight: isShown ? "200px" : "0px",
+        overflow: "hidden",
+        transition: "opacity 0.4s ease, max-height 0.4s ease",
+        pointerEvents: isShown ? "auto" : "none",
+      }}
+      onTransitionEnd={() => {
+        // Quando il fade-out finisce, torna nello stato nascosto
+        if (phase === "fading-out") {
+          setPhase("hidden");
+        }
+      }}
     >
-      <p className="text-xs text-muted-foreground mb-2 font-medium">
-        Verifica di sicurezza richiesta per proseguire:
-      </p>
-      <div ref={containerRef} />
+      <div className="flex flex-col items-center justify-center w-full py-4">
+        <div ref={containerRef} className="flex justify-center" />
+      </div>
     </div>
   );
 }

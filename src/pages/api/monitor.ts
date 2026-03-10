@@ -6,6 +6,7 @@ import type {
   Train,
   NextStop,
 } from "../../types/types";
+import { verifySolution } from "altcha-lib";
 
 export async function GET({ request }: APIContext): Promise<Response> {
   const url = new URL(request.url);
@@ -13,6 +14,40 @@ export async function GET({ request }: APIContext): Promise<Response> {
 
   const arrivalsRaw = url.searchParams.get("arrivals");
   const isArrivals = String(arrivalsRaw).toLowerCase() === "true";
+
+  const altchaPayload = request.headers.get("X-Altcha-Payload");
+
+  if (!altchaPayload) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: "Access Denied",
+      }),
+      {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
+
+  try {
+    const hmacKey = import.meta.env.ALTCHA_HMAC_KEY;
+
+    const isValid = await verifySolution(altchaPayload, hmacKey);
+
+    if (!isValid) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Failed Verify" }),
+        { status: 403, headers: { "Content-Type": "application/json" } },
+      );
+    }
+  } catch (error) {
+    console.error("Altcha Validation Error:", error);
+    return new Response(
+      JSON.stringify({ success: false, error: "Internal Error" }),
+      { status: 500, headers: { "Content-Type": "application/json" } },
+    );
+  }
 
   const now = Date.now();
 

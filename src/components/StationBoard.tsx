@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { ResponseDto, BoardData } from "../types/types";
 import TrainCard from "./TrainCard";
 import TrainCardSkeleton from "./TrainCardSkeleton";
@@ -18,14 +18,30 @@ export default function StationBoard({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [refreshKey, setRefreshKey] = useState(0);
+  const widgetRef = useRef<HTMLElement>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
   /**
    * Function to fetch data from Monitor API
    */
-  const fetchBoardData = async () => {
+  const fetchBoardData = async (payload: string) => {
     try {
       const endpoint = `/api/monitor?placeId=${placeId}&arrivals=${isArrivals}`;
-      const res = await fetch(endpoint);
-      if (!res.ok) throw new Error("Errore di rete");
+      const res = await fetch(endpoint, {
+        headers: {
+          "X-Altcha-Payload": payload,
+        },
+      });
+
+      if (!res.ok) {
+        if (res.status === 403) {
+          setRefreshKey((prev) => prev + 1);
+          throw new Error("Il token di sicurezza si sta rigenerando...");
+        }
+        throw new Error("Errore di rete");
+      }
+
       const json: ResponseDto<BoardData> = await res.json();
 
       if (json.success && json.data) {
@@ -42,26 +58,59 @@ export default function StationBoard({
   };
 
   /**
-   * Refresh research after one minute if user is navigating in the app
+   * Listen altcha changes
    */
   useEffect(() => {
-    setIsLoading(true);
-    fetchBoardData();
+    const handleStateChange = (ev: Event) => {
+      const event = ev as CustomEvent;
+      if (event.detail.state === "verified" && event.detail.payload) {
+        fetchBoardData(event.detail.payload);
+      } else if (event.detail.state === "error") {
+        setError("Errore nella verifica del dispositivo.");
+        setIsLoading(false);
+      }
+    };
 
+    const widget = widgetRef.current;
+    if (widget) {
+      widget.addEventListener("statechange", handleStateChange);
+    }
+
+    return () => {
+      if (widget) {
+        widget.removeEventListener("statechange", handleStateChange);
+      }
+    };
+  }, [placeId, isArrivals, refreshKey]);
+
+  /**
+   * Token regenerator
+   */
+  useEffect(() => {
+    import("altcha").catch(console.error);
+    setIsMounted(true);
+
+    // If the user is in page, regenerate token after 1 min
     const intervalId = setInterval(() => {
-      if (document.visibilityState === "visible") fetchBoardData();
+      if (document.visibilityState === "visible") {
+        setRefreshKey((prev) => prev + 1);
+      }
     }, 60000);
 
+    // Regenerate token when visibility change
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") fetchBoardData();
+      if (document.visibilityState === "visible") {
+        setRefreshKey((prev) => prev + 1);
+      }
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
       clearInterval(intervalId);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [placeId, isArrivals]);
+  }, []);
 
   /**
    * Memoized trains for internal search
@@ -80,65 +129,83 @@ export default function StationBoard({
     );
   }, [data, searchQuery]);
 
-  if (isLoading && !data) {
+  const renderContent = () => {
+    // If is loading
+    if (isLoading && !data) {
+      return (
+        <div className="animate-in fade-in duration-300 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-2">
+          {[1, 2, 3, 4, 5].map((i) => (
+            <TrainCardSkeleton key={i} />
+          ))}
+        </div>
+      );
+    }
+
+    // if error
+    if (error) {
+      return (
+        <div className="mt-4">
+          <EmptyBox
+            icon={AlertTriangle}
+            title="Errore nel caricamento dei dati"
+            subtitle={error}
+          />
+        </div>
+      );
+    }
+
+    // No trains
+    if (!data?.trains.length) {
+      return (
+        <div className="mt-4">
+          <EmptyBox
+            icon={TrainIcon}
+            title="Nessun treno previsto al momento per questa stazione."
+          />
+        </div>
+      );
+    }
+
+    // success
     return (
-      <div className="animate-in fade-in duration-300 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-2">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <TrainCardSkeleton key={i} />
-        ))}
+      <div className="animate-in fade-in duration-500 flex flex-col gap-4 mt-2">
+        <div className="space-y-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filteredTrains.length > 0 ? (
+            filteredTrains.map((train) => (
+              <TrainCard key={train.id} train={train} />
+            ))
+          ) : (
+            <div className="text-center py-12 bg-white rounded-2xl border border-slate-100 shadow-sm">
+              <p className="text-slate-500 font-medium text-sm">
+                Nessun treno corrisponde a "{searchQuery}"
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="text-center mt-2 pb-6">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            Ultimo aggiornamento:{" "}
+            {new Date(data.lastUpdate).toLocaleTimeString()}
+          </span>
+        </div>
       </div>
     );
-  }
+  };
 
-  /**
-   * If there was an error during api call
-   */
-  if (error) {
-    return (
-      <EmptyBox
-        icon={AlertTriangle}
-        title="Errore nel caricamenti dei dati"
-        subtitle="Riprova più tardi"
-      />
-    );
-  }
-
-  /**
-   * If there are no trains available for that station
-   */
-  if (!data?.trains.length) {
-    return (
-      <EmptyBox
-        icon={TrainIcon}
-        title="Nessun treno previsto al momento per questa stazione."
-      />
-    );
-  }
-
-  /**
-   * Else return the train or message for train not found for the specified query
-   */
   return (
-    <div className="animate-in fade-in duration-500 flex flex-col gap-4 mt-2">
-      <div className="space-y-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filteredTrains.length > 0 ? (
-          filteredTrains.map((train) => (
-            <TrainCard key={train.id} train={train} />
-          ))
-        ) : (
-          <div className="text-center py-12 bg-white rounded-2xl border border-slate-100 shadow-sm">
-            <p className="text-slate-500 font-medium text-sm">
-              Nessun treno corrisponde a "{searchQuery}"
-            </p>
-          </div>
+    <div className="flex flex-col">
+      <div className="hidden" key={refreshKey}>
+        {isMounted && (
+          <altcha-widget
+            ref={widgetRef}
+            challengeurl="/api/altcha"
+            auto="onload"
+          ></altcha-widget>
         )}
       </div>
 
-      <div className="text-center mt-2 pb-6">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-          Ultimo aggiornamento: {new Date(data.lastUpdate).toLocaleTimeString()}
-        </span>
-      </div>
+      {renderContent()}
     </div>
   );
 }

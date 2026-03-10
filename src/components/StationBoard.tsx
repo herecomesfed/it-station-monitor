@@ -81,7 +81,7 @@ export default function StationBoard({
         widget.removeEventListener("statechange", handleStateChange);
       }
     };
-  }, [placeId, isArrivals, refreshKey]);
+  }, [placeId, isArrivals, refreshKey, isMounted]);
 
   /**
    * Token regenerator

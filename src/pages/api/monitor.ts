@@ -8,7 +8,7 @@ import type {
 } from "../../types/types";
 import { verifySolution } from "altcha-lib";
 
-export async function GET({ request }: APIContext): Promise<Response> {
+export async function GET({ request, locals }: APIContext): Promise<Response> {
   const url = new URL(request.url);
   const placeId = url.searchParams.get("placeId") || "2416";
 
@@ -31,7 +31,8 @@ export async function GET({ request }: APIContext): Promise<Response> {
   }
 
   try {
-    const hmacKey = import.meta.env.ALTCHA_HMAC_KEY;
+    const cfEnv = (locals as any)?.runtime?.env || {};
+    const hmacKey = cfEnv.ALTCHA_HMAC_KEY || import.meta.env.ALTCHA_HMAC_KEY;
 
     const isValid = await verifySolution(altchaPayload, hmacKey);
 

@@ -1,9 +1,10 @@
 import type { APIContext } from "astro";
 import { createChallenge } from "altcha-lib";
 
-export async function GET({ request }: APIContext): Promise<Response> {
+export async function GET({ request, locals }: APIContext): Promise<Response> {
   try {
-    const hmacKey = import.meta.env.ALTCHA_HMAC_KEY;
+    const cfEnv = (locals as any)?.runtime?.env || {};
+    const hmacKey = cfEnv.ALTCHA_HMAC_KEY || import.meta.env.ALTCHA_HMAC_KEY;
 
     const challenge = await createChallenge({
       hmacKey: hmacKey,

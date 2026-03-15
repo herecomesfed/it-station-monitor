@@ -86,7 +86,7 @@ export async function fetchTrainDetails(
   stationId: string,
   trainNumber: string,
   timestamp: string,
-): Promise<TrainRealtimeDetails> {
+): Promise<TrainRealtimeDetails | null> {
   const res = await fetch(
     `${GET_LIVE_INFO_BASE_URL}/${stationId}/${trainNumber}/${timestamp}`,
     {
@@ -106,6 +106,24 @@ export async function fetchTrainDetails(
   }
 
   const data: TrenitaliaTrainResponse = JSON.parse(rawText);
+
+  // Ghost train filter: discard responses for trips that ended over 3 hours ago
+  // This prevents stale data from the previous day around midnight
+  if (data.fermate && data.fermate.length > 0) {
+    const lastStop = data.fermate[data.fermate.length - 1];
+
+    if (lastStop.arrivoReale !== null) {
+      const hoursSinceArrival =
+        (Date.now() - lastStop.arrivoReale) / (1000 * 60 * 60);
+
+      if (hoursSinceArrival > 3) {
+        console.warn(
+          `Ghost train ignored: ${trainNumber} terminated ${hoursSinceArrival.toFixed(1)}h ago`,
+        );
+        return null;
+      }
+    }
+  }
 
   // Find last train index to avoid missing information when viaggiatreno doesn't provide intermediary stops
   const currentTrainIndex = data.fermate.findLastIndex(

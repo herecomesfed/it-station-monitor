@@ -30,6 +30,10 @@ export async function GET({ request }: APIContext): Promise<Response> {
       stationInfo.timestamp,
     );
 
+    if (!realtimeDetails) {
+      return ApiError.notFound("No real-time data available").toResponse();
+    }
+
     const responseDto: ResponseDto<TrainRealtimeDetails> = {
       success: true,
       data: realtimeDetails,

@@ -25,8 +25,13 @@ export default function TrainCard({ train }: { train: Train }) {
     isOpen,
   );
 
-  const delayVal = parseInt(train.delay || "0");
-  const hasDelay = delayVal > 0 && train.delay?.toLowerCase() !== "nessuno";
+  // Prefer ViaggiaTreno real-time delay when available, fallback to RFI
+  const isRealtime = realtimeData !== null;
+  const delayVal = isRealtime
+    ? realtimeData.totalDelay
+    : parseInt(train.delay || "0");
+  const hasDelay =
+    delayVal > 0 && (isRealtime || train.delay?.toLowerCase() !== "nessuno");
 
   const trainCategory =
     train.category && train.category !== "TRENO" ? train.category : "Treno";
@@ -146,13 +151,18 @@ export default function TrainCard({ train }: { train: Train }) {
             <div className="text-2xl md:text-3xl font-black leading-none">
               {train.time}
             </div>
-            <div className="mt-2">
+            <div className="mt-2 flex flex-col items-end gap-0.5">
               <Badge
                 variant={hasDelay ? "destructive" : "outline"}
                 className="text-[10px]"
               >
-                {hasDelay ? `+${train.delay}' RITARDO` : "IN ORARIO"}
+                {hasDelay ? `+${delayVal}' RITARDO` : "IN ORARIO"}
               </Badge>
+              {isRealtime && (
+                <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider">
+                  tempo reale
+                </span>
+              )}
             </div>
           </div>
         </div>

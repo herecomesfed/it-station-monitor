@@ -56,7 +56,7 @@ export function useTrainDetails(
           setRealtimeData(json.data);
         }
       } catch (error) {
-        console.error("Errore recupero tempo reale, uso fallback RFI:", error);
+        console.error("Error fetching realtime data, using RFI fallback:", error);
       } finally {
         if (isMounted) {
           setIsLoadingRealtime(false);

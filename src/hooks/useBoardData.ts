@@ -37,8 +37,7 @@ export function useBoardData(
         throw new Error(json.error || "Errore sconosciuto");
       }
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Errore sconosciuto";
+      const message = err instanceof Error ? err.message : "Errore sconosciuto";
       setError(message);
     } finally {
       setIsLoading(false);

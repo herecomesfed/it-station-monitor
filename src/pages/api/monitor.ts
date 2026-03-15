@@ -1,6 +1,7 @@
 import type { APIContext } from "astro";
 import type { ResponseDto, BoardData } from "../../types/types";
 import { fetchBoard } from "../../services/rfi.service";
+import { ApiError } from "../../lib/api-error";
 
 export async function GET({ request }: APIContext): Promise<Response> {
   const url = new URL(request.url);
@@ -24,10 +25,9 @@ export async function GET({ request }: APIContext): Promise<Response> {
       },
     });
   } catch (e) {
+    if (e instanceof ApiError) return e.toResponse();
+
     console.error("Fetch error:", e);
-    return new Response(
-      JSON.stringify({ success: false, error: "RFI Error" }),
-      { status: 500 },
-    );
+    return ApiError.badGateway("RFI service unavailable").toResponse();
   }
 }

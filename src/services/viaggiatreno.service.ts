@@ -6,6 +6,7 @@ import type {
   TrenitaliaStop,
   TrenitaliaTrainResponse,
 } from "@/types/types";
+import { ApiError } from "@/lib/api-error";
 
 const HEADERS = {
   "User-Agent":
@@ -94,42 +95,108 @@ export async function fetchTrainDetails(
   );
 
   if (!res.ok) {
-    throw new Error("HTTP Error during viaggiatreno request");
+    throw ApiError.badGateway(`ViaggiaTreno HTTP ${res.status}`);
   }
 
-  const data: TrenitaliaTrainResponse = await res.json();
+  // Extract raw text to avoid invalid JSON response by Viaggiatreno
+  const rawText = await res.text();
+
+  if (!rawText || rawText.trim() === "") {
+    throw ApiError.serviceUnavailable("ViaggiaTreno returned empty response");
+  }
+
+  const data: TrenitaliaTrainResponse = JSON.parse(rawText);
 
   // Find last train index to avoid missing information when viaggiatreno doesn't provide intermediary stops
   const currentTrainIndex = data.fermate.findLastIndex(
-    (f: TrenitaliaStop) =>
-      f.partenzaReale !== null || f.arrivoReale !== null,
+    (f: TrenitaliaStop) => f.partenzaReale !== null || f.arrivoReale !== null,
   );
+
+  /**
+   * Extract time data from a stop
+   * @param s the stop
+   * @param isLastStop if is the last stop
+   * @returns object with scheduledTime, actualTime and delay
+   */
+  const extractTimeData = (s: TrenitaliaStop, isLastStop: boolean) => {
+    if (s.partenzaReale !== null) {
+      return {
+        scheduledTime: s.partenza_teorica || s.programmata,
+        actualTime: s.partenzaReale,
+        delay: s.ritardoPartenza || 0,
+      };
+    }
+
+    if (s.arrivoReale !== null) {
+      return {
+        scheduledTime: s.arrivo_teorico || s.programmata,
+        actualTime: s.arrivoReale,
+        delay: s.ritardoArrivo || 0,
+      };
+    }
+
+    return {
+      scheduledTime: isLastStop
+        ? s.arrivo_teorico || s.programmata
+        : s.partenza_teorica || s.programmata,
+      actualTime: null,
+      delay: isLastStop ? s.ritardoArrivo || 0 : s.ritardoPartenza || 0,
+    };
+  };
+
+  /**
+   * Determine the state of a stop
+   * @param index the index of the stop
+   * @param currentTrainIndex the index of the current train
+   * @param s the stop
+   * @param isLastStop if is the last stop
+   * @returns the state of the stop
+   */
+  const determineStopState = (
+    index: number,
+    currentTrainIndex: number,
+    s: TrenitaliaStop,
+    isLastStop: boolean,
+  ): StopState => {
+    // If there are no real time data, all the stops are upcoming
+    if (currentTrainIndex === -1 || index > currentTrainIndex) {
+      return "UPCOMING";
+    }
+
+    // If index of the stop is smaller than current index, train is passed
+    if (index < currentTrainIndex) {
+      return "PASSED";
+    }
+
+    // If the current train has real departure time, it's passed
+    if (s.partenzaReale !== null) {
+      return "PASSED";
+    }
+
+    // If the train has arrival time, check if is the last stop
+    if (s.arrivoReale !== null) {
+      return isLastStop ? "PASSED" : "ACTIVE";
+    }
+
+    // Fallback
+    return "UPCOMING";
+  };
 
   // Map all the stops
   const stops: TrainRealtimeStop[] = data.fermate.map(
     (s: TrenitaliaStop, index: number) => {
-      let state: StopState = "UPCOMING";
-
-      // If index of the stop is smaller than current index, train is passed
-      if (currentTrainIndex !== -1 && index < currentTrainIndex) {
-        state = "PASSED";
-      } else if (index === currentTrainIndex) {
-        // If the current train has real departure time, it's passed
-        if (s.partenzaReale !== null) {
-          state = "PASSED";
-        } else if (s.arrivoReale !== null) {
-          // If the train has arrival time, check if is the last stop
-          const isLastStop = index === data.fermate.length - 1;
-          state = isLastStop ? "PASSED" : "ACTIVE";
-        }
-      }
+      const isLastStop = index === data.fermate.length - 1;
+      const state = determineStopState(index, currentTrainIndex, s, isLastStop);
+      const { scheduledTime, actualTime, delay } = extractTimeData(
+        s,
+        isLastStop,
+      );
 
       return {
         station: s.stazione,
-        scheduledTime:
-          s.partenza_teorica || s.arrivo_teorico || s.programmata,
-        actualTime: s.partenzaReale || s.arrivoReale || null,
-        delay: s.ritardoPartenza || s.ritardoArrivo || 0,
+        scheduledTime,
+        actualTime,
+        delay,
         actualPlatform:
           s.binarioEffettivoPartenzaDescrizione ||
           s.binarioEffettivoArrivoDescrizione ||

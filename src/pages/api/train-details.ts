@@ -4,6 +4,7 @@ import {
   getStationInfo,
   fetchTrainDetails,
 } from "../../services/viaggiatreno.service";
+import { ApiError } from "../../lib/api-error";
 
 /**
  * GET endpoint to retrieve real time train stops
@@ -11,26 +12,21 @@ import {
 export async function GET({ request }: APIContext): Promise<Response> {
   const url = new URL(request.url);
   const trainNumber = url.searchParams.get("trainNumber");
+
+  if (!trainNumber) {
+    return ApiError.badRequest("Missing trainNumber parameter").toResponse();
+  }
+
   const stationInfo = await getStationInfo(trainNumber);
 
-  // If station info are not present, return 404
   if (!stationInfo) {
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "No station found",
-      }),
-      {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      },
-    );
+    return ApiError.notFound("Train not found").toResponse();
   }
 
   try {
     const realtimeDetails = await fetchTrainDetails(
       stationInfo.id,
-      trainNumber!,
+      trainNumber,
       stationInfo.timestamp,
     );
 
@@ -47,13 +43,9 @@ export async function GET({ request }: APIContext): Promise<Response> {
       },
     });
   } catch (e) {
+    if (e instanceof ApiError) return e.toResponse();
+
     console.error("Error during catching train details:", e);
-    return new Response(
-      JSON.stringify({
-        success: false,
-        error: "Connection Error",
-      }),
-      { status: 500, headers: { "Content-Type": "application/json" } },
-    );
+    return ApiError.badGateway("ViaggiaTreno service unavailable").toResponse();
   }
 }

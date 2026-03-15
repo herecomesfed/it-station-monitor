@@ -6,7 +6,7 @@ export default function HomeSearch() {
   const [recent, setRecent] = useState<{ id: string; name: string }[]>([]);
 
   /**
-   * Effect to get recent trains from localStorage
+   * Loads recently visited stations from localStorage on mount
    */
   useEffect(() => {
     const saved = localStorage.getItem("recent_train_stations");
@@ -14,7 +14,7 @@ export default function HomeSearch() {
   }, []);
 
   /**
-   * Function to save a station to recent
+   * Saves a station to the recent list (max 3) in localStorage
    * @param id the id of the station
    * @param name the name of the station
    */

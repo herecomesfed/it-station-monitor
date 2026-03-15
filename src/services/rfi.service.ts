@@ -1,5 +1,6 @@
 import { parse } from "node-html-parser";
 import type { BoardData, Train, NextStop } from "../types/types";
+import { ApiError } from "../lib/api-error";
 
 /**
  * Fetches and parses the station board from RFI
@@ -23,6 +24,10 @@ export async function fetchBoard(
       Referer: "https://iechub.rfi.it/ArriviPartenze/ArrivalsDepartures/Home",
     },
   });
+
+  if (!response.ok) {
+    throw ApiError.badGateway(`RFI HTTP ${response.status}`);
+  }
 
   const html = await response.text();
   const root = parse(html);

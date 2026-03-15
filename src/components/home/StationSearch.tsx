@@ -27,7 +27,7 @@ export default function StationSearch({
   const containerRef = useRef<HTMLDivElement>(null);
 
   /**
-   * Fetch 8 result to avoid UI rendering problems
+   * Filters stations and limits to 8 results to avoid UI rendering issues
    */
   const results = useMemo(() => {
     if (query.length < 2) return [];
@@ -37,7 +37,7 @@ export default function StationSearch({
   }, [query]);
 
   /**
-   * Function to select the station and navigate throught the page
+   * Selects a station and navigates to the station page
    * @param station the selected station
    */
   const handleSelect = (station: Station) => {
@@ -50,7 +50,7 @@ export default function StationSearch({
   };
 
   /**
-   * Effect to close the command
+   * Closes the dropdown when clicking outside
    */
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

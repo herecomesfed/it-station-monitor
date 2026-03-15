@@ -21,7 +21,7 @@ export default function StationBoardApp({
   const [searchQuery, setSearchQuery] = useState("");
 
   /**
-   * Effect to define if we are looking for arrivals or departures
+   * Reads the initial tab state from the URL query parameter
    */
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -30,7 +30,7 @@ export default function StationBoardApp({
   }, []);
 
   /**
-   * This function listen the tab change
+   * Handles tab change, updates URL and resets search query
    * @param val the value of the tab
    */
   const handleTabChange = (val: string) => {

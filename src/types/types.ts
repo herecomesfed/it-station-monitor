@@ -1,3 +1,4 @@
+/** Parsed train entry from RFI station board */
 export interface Train {
   id: string;
   operator?: string | undefined;
@@ -11,11 +12,13 @@ export interface Train {
   type: string;
 }
 
+/** Intermediate stop extracted from RFI schedule */
 export interface NextStop {
   stop: string;
   hour: string;
 }
 
+/** Station board response containing train list and metadata */
 export interface BoardData {
   stationId: string;
   type: "ARRIVALS" | "DEPARTURES";
@@ -23,19 +26,23 @@ export interface BoardData {
   trains: Train[];
 }
 
+/** Standard API response wrapper */
 export interface ResponseDto<T> {
   success: boolean;
   data?: T;
   error?: string;
 }
 
+/** Station info returned by ViaggiaTreno autocomplete API */
 export interface TrenitaliaStationInfo {
   id: string;
   timestamp: string;
 }
 
+/** Current state of a train at a given stop */
 export type StopState = "PASSED" | "ACTIVE" | "UPCOMING";
 
+/** Normalized real-time stop used by the frontend */
 export interface TrainRealtimeStop {
   station: string;
   scheduledTime: number | null;
@@ -45,6 +52,7 @@ export interface TrainRealtimeStop {
   state: StopState;
 }
 
+/** Complete real-time train details with all stops */
 export interface TrainRealtimeDetails {
   totalDelay: number;
   lastDetectionStation: string | null;
@@ -52,6 +60,10 @@ export interface TrainRealtimeDetails {
   stops: TrainRealtimeStop[];
 }
 
+/**
+ * Raw stop data from ViaggiaTreno API.
+ * Field names are kept in Italian to match the external API response.
+ */
 export interface TrenitaliaStop {
   stazione: string;
   partenza_teorica: number | null;
@@ -65,6 +77,10 @@ export interface TrenitaliaStop {
   binarioEffettivoArrivoDescrizione: string | null;
 }
 
+/**
+ * Raw train response from ViaggiaTreno "andamentoTreno" endpoint.
+ * Field names are kept in Italian to match the external API response.
+ */
 export interface TrenitaliaTrainResponse {
   ritardo: number;
   stazioneUltimoRilevamento: string | null;

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import StationBoard from "./StationBoard";
 import { Search, X } from "lucide-react";
+import ErrorBoundary from "../common/ErrorBoundary";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -101,12 +102,14 @@ export default function StationBoardApp({
           </span>
         </div>
 
-        <StationBoard
-          key={`${placeId}-${type}`}
-          placeId={placeId}
-          isArrivals={type === ARRIVALS}
-          searchQuery={searchQuery}
-        />
+        <ErrorBoundary>
+          <StationBoard
+            key={`${placeId}-${type}`}
+            placeId={placeId}
+            isArrivals={type === ARRIVALS}
+            searchQuery={searchQuery}
+          />
+        </ErrorBoundary>
       </main>
     </div>
   );

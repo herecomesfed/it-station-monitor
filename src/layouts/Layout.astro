@@ -6,7 +6,7 @@ interface Props {
 const { title, showBackButton } = Astro.props;
 import { ClientRouter } from "astro:transitions";
 import "../styles/global.css";
-import AppHeader from "@/components/AppHeader";
+import AppHeader from "@/components/common/AppHeader";
 
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/600.css";
@@ -23,11 +23,11 @@ import "@fontsource/inter/700.css";
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>{title}</title>
   </head>
-  <body class="bg-background font-['Inter',sans-serif] text-slate-900">
+  <body class="bg-background font-['Inter',sans-serif] text-foreground">
     <AppHeader showBackButton={showBackButton} />
     <slot />
     <footer
-      class="bg-background py-6 mt-8 border-t border-slate-200 dark:border-slate-800"
+      class="bg-background py-6 mt-8 border-t border-border"
     >
       <div
         class="w-full max-w-2xl lg:max-w-5xl xl:max-w-6xl mx-auto px-4 md:px-6 lg:px-8"

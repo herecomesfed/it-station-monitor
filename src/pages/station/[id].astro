@@ -1,9 +1,14 @@
 ---
 import Layout from "../../layouts/Layout.astro";
-import StationBoardApp from "../../components/StationBoardApp";
+import StationBoardApp from "../../components/station/StationBoardApp";
 
 const { id } = Astro.params;
-const stationName = Astro.url.searchParams.get("name") || "Stazione";
+const stationName = Astro.url.searchParams.get("name");
+
+// Redirect to home if station name is missing
+if (!stationName) {
+  return Astro.redirect("/");
+}
 ---
 
 <Layout title={`${stationName} - ITStationMonitor`} showBackButton={true}>

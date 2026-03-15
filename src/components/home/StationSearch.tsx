@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Train, AlertCircle } from "lucide-react";
-import stationsData from "../data/stations.json";
+import stationsData from "../../data/stations.json";
 import { navigate } from "astro:transitions/client";
 
 import {

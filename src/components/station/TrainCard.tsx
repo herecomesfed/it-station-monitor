@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Train } from "../types/types";
+import type { Train } from "../../types/types";
 import { ChevronDown, Info } from "lucide-react";
 
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,16 +10,113 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import TrainTimelineSkeleton from "./TrainTimelineSkeleton";
+import TrainTimeline, { type UnifiedStop } from "./TrainTimeline";
+import { cn } from "@/lib/utils";
+import { useTrainDetails } from "@/hooks/useTrainDetails";
 
 export default function TrainCard({ train }: { train: Train }) {
   const [isOpen, setIsOpen] = useState(false);
   const isArrival = train.type === "ARRIVAL";
+
+  const { realtimeData, isLoadingRealtime } = useTrainDetails(
+    train.trainNumber,
+    train.operator,
+    isOpen,
+  );
 
   const delayVal = parseInt(train.delay || "0");
   const hasDelay = delayVal > 0 && train.delay?.toLowerCase() !== "nessuno";
 
   const trainCategory =
     train.category && train.category !== "TRENO" ? train.category : "Treno";
+
+  const formatTime = (ts: number | null) => {
+    if (!ts) return "--:--";
+    return new Date(ts).toLocaleTimeString("it-IT", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  /**
+   * Unifies RFI static response and Viaggiatreno real time data
+   */
+  const getUnifiedStops = (): UnifiedStop[] => {
+    // If real data exist, use them
+    if (realtimeData && realtimeData.stops.length > 0) {
+      return realtimeData.stops.map((s, i) => ({
+        id: `${s.station}-${i}`,
+        station: s.station,
+        scheduledTime: formatTime(s.scheduledTime),
+        actualTime:
+          s.actualTime || s.delay > 0
+            ? formatTime(s.actualTime || (s.scheduledTime ?? 0) + s.delay * 60000)
+            : undefined,
+        delay: s.delay,
+        platform: s.actualPlatform,
+        status: s.state,
+      }));
+    }
+
+    // If there aren't real time data, use RFI fallback response
+    if (train.nextStops && train.nextStops.length > 0) {
+      return train.nextStops.map((s, i) => ({
+        id: `${s.stop}-${i}`,
+        station: s.stop,
+        scheduledTime: s.hour,
+        delay: 0,
+        status: "STATIC",
+      }));
+    }
+
+    return [];
+  };
+
+  const stopsToRender = getUnifiedStops();
+
+  const renderTimelineContent = () => {
+    if (isLoadingRealtime) {
+      return <TrainTimelineSkeleton />;
+    }
+
+    if (stopsToRender.length > 0) {
+      return (
+        <div className="space-y-4">
+          {/* Last Detection by Viaggiatreno */}
+          {realtimeData?.lastDetectionStation && (
+            <div className="bg-green-500/10 text-green-700 dark:text-green-400 p-2.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-center flex items-center justify-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+              Ultimo rilevamento: {realtimeData.lastDetectionStation}
+            </div>
+          )}
+
+          {/* Fallback by RFI */}
+          {!realtimeData && (
+            <p className="text-[10px] text-muted-foreground italic text-center">
+              Orari programmati da RFI
+            </p>
+          )}
+
+          {/* Timeline */}
+          <TrainTimeline stops={stopsToRender} />
+        </div>
+      );
+    }
+
+    // No data available
+    return (
+      <div className="bg-muted/50 p-4 rounded-xl text-center">
+        <Info className="w-4 h-4 text-muted-foreground mx-auto mb-1" />
+        <p className="text-[10px] text-muted-foreground font-medium italic">
+          Fermate non disponibili per questo treno.
+        </p>
+      </div>
+    );
+  };
 
   return (
     <Card className="mb-3 overflow-hidden transition-shadow hover:shadow-md">
@@ -83,42 +180,17 @@ export default function TrainCard({ train }: { train: Train }) {
               >
                 {isOpen ? "Chiudi" : "Dettagli"}
                 <ChevronDown
-                  className={`w-3.5 h-3.5 ml-1.5 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
+                  className={cn(
+                    "w-3.5 h-3.5 ml-1.5 transition-transform duration-300",
+                    isOpen && "rotate-180",
+                  )}
                 />
               </Button>
             </CollapsibleTrigger>
           </div>
 
           <CollapsibleContent className="mt-4 pt-4 border-t border-dashed space-y-2">
-            {train.nextStops.length > 0 ? (
-              <ul className="relative pl-4">
-                {train.nextStops.map((s, i) => (
-                  <li key={s.stop}>
-                    <div className="flex gap-4">
-                      <div className="relative flex w-6 items-center justify-center py-5 before:absolute before:left-1/2 before:top-0 before:h-full before:w-0.5 before:-translate-x-1/2 before:bg-foreground before:content-['']">
-                        <div className="relative z-10 h-2.5 w-2.5 rounded-full bg-foreground"></div>
-                      </div>
-
-                      <div className="py-3 flex flex-col justify-center">
-                        <p className="font-bold text-foreground leading-none mb-1">
-                          {s.stop}
-                        </p>
-                        <p className="font-mono text-xs text-muted-foreground">
-                          {s.hour}
-                        </p>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="bg-muted/50 p-4 rounded-xl text-center">
-                <Info className="w-4 h-4 text-muted-foreground mx-auto mb-1" />
-                <p className="text-[10px] text-muted-foreground font-medium italic">
-                  Fermate non disponibili per questo treno.
-                </p>
-              </div>
-            )}
+            {renderTimelineContent()}
           </CollapsibleContent>
         </Collapsible>
       </CardContent>

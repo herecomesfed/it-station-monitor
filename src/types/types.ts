@@ -28,3 +28,46 @@ export interface ResponseDto<T> {
   data?: T;
   error?: string;
 }
+
+export interface TrenitaliaStationInfo {
+  id: string;
+  timestamp: string;
+}
+
+export type StopState = "PASSED" | "ACTIVE" | "UPCOMING";
+
+export interface TrainRealtimeStop {
+  station: string;
+  scheduledTime: number | null;
+  actualTime: number | null;
+  delay: number;
+  actualPlatform: string | null;
+  state: StopState;
+}
+
+export interface TrainRealtimeDetails {
+  totalDelay: number;
+  lastDetectionStation: string | null;
+  lastDetectionTime: number | null;
+  stops: TrainRealtimeStop[];
+}
+
+export interface TrenitaliaStop {
+  stazione: string;
+  partenza_teorica: number | null;
+  arrivo_teorico: number | null;
+  programmata: number | null;
+  partenzaReale: number | null;
+  arrivoReale: number | null;
+  ritardoPartenza: number;
+  ritardoArrivo: number;
+  binarioEffettivoPartenzaDescrizione: string | null;
+  binarioEffettivoArrivoDescrizione: string | null;
+}
+
+export interface TrenitaliaTrainResponse {
+  ritardo: number;
+  stazioneUltimoRilevamento: string | null;
+  oraUltimoRilevamento: number | null;
+  fermate: TrenitaliaStop[];
+}

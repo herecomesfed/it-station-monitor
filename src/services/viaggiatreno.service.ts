@@ -226,6 +226,7 @@ export async function fetchTrainDetails(
 
   return {
     totalDelay: data.ritardo || 0,
+    hasDeparted: currentTrainIndex !== -1,
     lastDetectionStation: data.stazioneUltimoRilevamento || null,
     lastDetectionTime: data.oraUltimoRilevamento || null,
     stops,

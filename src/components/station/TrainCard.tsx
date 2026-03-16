@@ -25,13 +25,14 @@ export default function TrainCard({ train }: { train: Train }) {
     isOpen,
   );
 
-  // Prefer ViaggiaTreno real-time delay when available, fallback to RFI
+  // Prefer ViaggiaTreno real-time delay when available and train has departed, fallback to RFI
   const isRealtime = realtimeData !== null;
-  const delayVal = isRealtime
+  const useRealtimeDelay = isRealtime && realtimeData.hasDeparted;
+  const delayVal = useRealtimeDelay
     ? realtimeData.totalDelay
     : parseInt(train.delay || "0");
   const hasDelay =
-    delayVal > 0 && (isRealtime || train.delay?.toLowerCase() !== "nessuno");
+    delayVal > 0 && (useRealtimeDelay || train.delay?.toLowerCase() !== "nessuno");
 
   const trainCategory =
     train.category && train.category !== "TRENO" ? train.category : "Treno";

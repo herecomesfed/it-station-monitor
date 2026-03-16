@@ -2,6 +2,9 @@ import { parse } from "node-html-parser";
 import type { BoardData, Train, NextStop } from "../types/types";
 import { ApiError } from "../lib/api-error";
 
+const RFI_MONITOR_BASE_URL =
+  "https://iechub.rfi.it/ArriviPartenze/ArrivalsDepartures/Monitor";
+
 /**
  * Fetches and parses the station board from RFI
  * @param placeId the station place id
@@ -14,7 +17,7 @@ export async function fetchBoard(
 ): Promise<BoardData> {
   const now = Date.now();
   const rfiParam = isArrivals ? "true" : "false";
-  const targetUrl = `https://iechub.rfi.it/ArriviPartenze/ArrivalsDepartures/Monitor?placeId=${placeId}&arrivals=${rfiParam}&_t=${now}`;
+  const targetUrl = `${RFI_MONITOR_BASE_URL}?placeId=${placeId}&arrivals=${rfiParam}&_t=${now}`;
 
   const response = await fetch(targetUrl, {
     headers: {

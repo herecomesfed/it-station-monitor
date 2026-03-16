@@ -55,6 +55,7 @@ export interface TrainRealtimeStop {
 /** Complete real-time train details with all stops */
 export interface TrainRealtimeDetails {
   totalDelay: number;
+  hasDeparted: boolean;
   lastDetectionStation: string | null;
   lastDetectionTime: number | null;
   stops: TrainRealtimeStop[];

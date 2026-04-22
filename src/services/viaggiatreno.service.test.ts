@@ -123,8 +123,8 @@ describe("fetchTrainDetails", () => {
 
     const result = await fetchTrainDetails("S001", "123", "1710500400000");
 
-    expect(result.stops).toHaveLength(3);
-    expect(result.stops.every((s) => s.state === "UPCOMING")).toBe(true);
+    expect(result?.stops).toHaveLength(3);
+    expect(result?.stops.every((s) => s.state === "UPCOMING")).toBe(true);
   });
 
   it("should mark stops before current as PASSED", async () => {
@@ -136,9 +136,9 @@ describe("fetchTrainDetails", () => {
 
     const result = await fetchTrainDetails("S001", "123", "1710500400000");
 
-    expect(result.stops[0].state).toBe("PASSED");
-    expect(result.stops[1].state).toBe("PASSED");
-    expect(result.stops[2].state).toBe("UPCOMING");
+    expect(result?.stops[0].state).toBe("PASSED");
+    expect(result?.stops[1].state).toBe("PASSED");
+    expect(result?.stops[2].state).toBe("UPCOMING");
   });
 
   it("should mark stop as ACTIVE when it has arrivoReale but no partenzaReale and is not last stop", async () => {
@@ -150,9 +150,9 @@ describe("fetchTrainDetails", () => {
 
     const result = await fetchTrainDetails("S001", "123", "1710500400000");
 
-    expect(result.stops[0].state).toBe("PASSED");
-    expect(result.stops[1].state).toBe("ACTIVE");
-    expect(result.stops[2].state).toBe("UPCOMING");
+    expect(result?.stops[0].state).toBe("PASSED");
+    expect(result?.stops[1].state).toBe("ACTIVE");
+    expect(result?.stops[2].state).toBe("UPCOMING");
   });
 
   it("should mark last stop as PASSED when it has arrivoReale", async () => {
@@ -164,36 +164,39 @@ describe("fetchTrainDetails", () => {
 
     const result = await fetchTrainDetails("S001", "123", "1710500400000");
 
-    expect(result.stops[0].state).toBe("PASSED");
-    expect(result.stops[1].state).toBe("PASSED");
-    expect(result.stops[2].state).toBe("PASSED");
+    expect(result?.stops[0].state).toBe("PASSED");
+    expect(result?.stops[1].state).toBe("PASSED");
+    expect(result?.stops[2].state).toBe("PASSED");
   });
 
   it("should extract delay from ritardo field", async () => {
     mockTrainResponse(
-      [makeFermata({ stazione: "A", ritardoPartenza: 5, partenzaReale: 1710500700000 })],
+      [
+        makeFermata({
+          stazione: "A",
+          ritardoPartenza: 5,
+          partenzaReale: 1710500700000,
+        }),
+      ],
       { ritardo: 5 },
     );
 
     const result = await fetchTrainDetails("S001", "123", "1710500400000");
 
-    expect(result.totalDelay).toBe(5);
-    expect(result.stops[0].delay).toBe(5);
+    expect(result?.totalDelay).toBe(5);
+    expect(result?.stops[0].delay).toBe(5);
   });
 
   it("should extract last detection info", async () => {
-    mockTrainResponse(
-      [makeFermata()],
-      {
-        stazioneUltimoRilevamento: "ROMA TERMINI",
-        oraUltimoRilevamento: 1710500400000,
-      },
-    );
+    mockTrainResponse([makeFermata()], {
+      stazioneUltimoRilevamento: "ROMA TERMINI",
+      oraUltimoRilevamento: 1710500400000,
+    });
 
     const result = await fetchTrainDetails("S001", "123", "1710500400000");
 
-    expect(result.lastDetectionStation).toBe("ROMA TERMINI");
-    expect(result.lastDetectionTime).toBe(1710500400000);
+    expect(result?.lastDetectionStation).toBe("ROMA TERMINI");
+    expect(result?.lastDetectionTime).toBe(1710500400000);
   });
 
   it("should throw ApiError on HTTP error", async () => {

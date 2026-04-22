@@ -4,12 +4,12 @@ import type { TrainRealtimeDetails } from "../types/types";
 interface UseTrainDetailsReturn {
   realtimeData: TrainRealtimeDetails | null;
   isLoadingRealtime: boolean;
-  hasAttemptedFetch: boolean;
 }
 
 /**
- * Hook to fetch real-time train details from ViaggiaTreno
- * Only fetches when isOpen is true and the train operator is supported
+ * Hook to fetch real-time train details from ViaggiaTreno.
+ * Polls every 60 seconds while isOpen is true.
+ * Resets on close so data is fresh on reopen.
  * @param trainNumber the train number
  * @param operator the train operator
  * @param isOpen whether the detail panel is open
@@ -25,7 +25,11 @@ export function useTrainDetails(
   const [hasAttemptedFetch, setHasAttemptedFetch] = useState(false);
 
   useEffect(() => {
-    if (!isOpen || hasAttemptedFetch) return;
+    // When the panel is closed, reset so data is re-fetched on reopen
+    if (!isOpen) {
+      setHasAttemptedFetch(false);
+      return;
+    }
 
     const op = operator?.toLowerCase() || "";
 
@@ -43,8 +47,10 @@ export function useTrainDetails(
 
     let isMounted = true;
 
-    const fetchRealtime = async () => {
-      setIsLoadingRealtime(true);
+    const fetchRealtime = async (isBackgroundPolling = false) => {
+      if (!isBackgroundPolling) {
+        setIsLoadingRealtime(true);
+      }
 
       try {
         const res = await fetch(
@@ -65,12 +71,21 @@ export function useTrainDetails(
       }
     };
 
-    fetchRealtime();
+    // Initial fetch (shows loading skeleton)
+    if (!hasAttemptedFetch) {
+      fetchRealtime(false);
+    }
+
+    // Poll every 60 seconds (silent background refresh)
+    const intervalId = setInterval(() => {
+      fetchRealtime(true);
+    }, 60_000);
 
     return () => {
       isMounted = false;
+      clearInterval(intervalId);
     };
   }, [isOpen, hasAttemptedFetch, trainNumber, operator]);
 
-  return { realtimeData, isLoadingRealtime, hasAttemptedFetch };
+  return { realtimeData, isLoadingRealtime };
 }

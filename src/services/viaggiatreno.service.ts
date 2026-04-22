@@ -141,7 +141,10 @@ export async function fetchTrainDetails(
       return {
         scheduledTime: s.partenza_teorica || s.programmata,
         actualTime: s.partenzaReale,
+        scheduledArrivalTime: s.arrivo_teorico,
+        actualArrivalTime: s.arrivoReale,
         delay: s.ritardoPartenza || 0,
+        arrivalDelay: s.ritardoArrivo || 0,
       };
     }
 
@@ -149,16 +152,20 @@ export async function fetchTrainDetails(
       return {
         scheduledTime: s.arrivo_teorico || s.programmata,
         actualTime: s.arrivoReale,
+        scheduledArrivalTime: s.arrivo_teorico,
+        actualArrivalTime: s.arrivoReale,
         delay: s.ritardoArrivo || 0,
+        arrivalDelay: s.ritardoArrivo || 0,
       };
     }
 
     return {
-      scheduledTime: isLastStop
-        ? s.arrivo_teorico || s.programmata
-        : s.partenza_teorica || s.programmata,
+      scheduledTime: s.partenza_teorica || s.programmata,
       actualTime: null,
-      delay: isLastStop ? s.ritardoArrivo || 0 : s.ritardoPartenza || 0,
+      scheduledArrivalTime: s.arrivo_teorico,
+      actualArrivalTime: null,
+      delay: s.ritardoPartenza || 0,
+      arrivalDelay: s.ritardoArrivo || 0,
     };
   };
 
@@ -205,16 +212,23 @@ export async function fetchTrainDetails(
     (s: TrenitaliaStop, index: number) => {
       const isLastStop = index === data.fermate.length - 1;
       const state = determineStopState(index, currentTrainIndex, s, isLastStop);
-      const { scheduledTime, actualTime, delay } = extractTimeData(
-        s,
-        isLastStop,
-      );
+      const {
+        scheduledTime,
+        actualTime,
+        delay,
+        scheduledArrivalTime,
+        actualArrivalTime,
+        arrivalDelay,
+      } = extractTimeData(s, isLastStop);
 
       return {
         station: s.stazione,
         scheduledTime,
         actualTime,
         delay,
+        scheduledArrivalTime,
+        actualArrivalTime,
+        arrivalDelay,
         actualPlatform:
           s.binarioEffettivoPartenzaDescrizione ||
           s.binarioEffettivoArrivoDescrizione ||

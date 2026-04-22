@@ -30,7 +30,7 @@ export default function HomeSearch() {
   return (
     <div className="min-h-screen pb-10 bg-background text-foreground">
       <main className="max-w-2xl lg:max-w-5xl xl:max-w-6xl w-full mx-auto p-4 md:p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <h1 className="text-3xl font-black mb-2">Dove vuoi andare?</h1>
+        <h1 className="text-3xl font-black mb-2">In che stazione sei?</h1>
         <p className="text-muted-foreground mb-8 font-medium">
           Cerca una stazione per vedere il tabellone in tempo reale.
         </p>

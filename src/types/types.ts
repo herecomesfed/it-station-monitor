@@ -48,6 +48,9 @@ export interface TrainRealtimeStop {
   scheduledTime: number | null;
   actualTime: number | null;
   delay: number;
+  scheduledArrivalTime: number | null;
+  actualArrivalTime: number | null;
+  arrivalDelay: number;
   actualPlatform: string | null;
   state: StopState;
 }

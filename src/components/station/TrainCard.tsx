@@ -60,6 +60,15 @@ export default function TrainCard({ train }: { train: Train }) {
             ? formatTime(s.actualTime || (s.scheduledTime ?? 0) + s.delay * 60000)
             : undefined,
         delay: s.delay,
+        scheduledArrivalTime: formatTime(s.scheduledArrivalTime),
+        actualArrivalTime:
+          s.actualArrivalTime || s.arrivalDelay > 0
+            ? formatTime(
+                s.actualArrivalTime ||
+                  (s.scheduledArrivalTime ?? 0) + s.arrivalDelay * 60000,
+              )
+            : undefined,
+        arrivalDelay: s.arrivalDelay,
         platform: s.actualPlatform,
         status: s.state,
       }));

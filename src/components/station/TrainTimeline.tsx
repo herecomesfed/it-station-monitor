@@ -8,6 +8,9 @@ export interface UnifiedStop {
   scheduledTime: string;
   actualTime?: string;
   delay: number;
+  scheduledArrivalTime?: string;
+  actualArrivalTime?: string;
+  arrivalDelay?: number;
   platform?: string | null;
   status: TimelineStopStatus;
 }
@@ -69,7 +72,46 @@ export default function TrainTimeline({ stops }: TrainTimelineProps) {
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 mt-1">
+                {s.scheduledArrivalTime &&
+                  s.scheduledArrivalTime !== s.scheduledTime &&
+                  s.scheduledArrivalTime !== "--:--" && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[9px] font-bold text-muted-foreground/70 uppercase w-6 shrink-0">
+                        Arr
+                      </span>
+                      <p
+                        className={cn(
+                          "font-mono text-xs transition-colors",
+                          isActive || (s.arrivalDelay ?? 0) > 0
+                            ? "line-through text-muted-foreground/60"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {s.scheduledArrivalTime}
+                      </p>
+
+                      {s.actualArrivalTime && (
+                        <p
+                          className={cn(
+                            "font-mono text-xs font-bold",
+                            (s.arrivalDelay ?? 0) > 5
+                              ? "text-destructive"
+                              : (s.arrivalDelay ?? 0) > 0
+                                ? "text-orange-500"
+                                : "text-green-600",
+                          )}
+                        >
+                          {s.actualArrivalTime}{" "}
+                          {(s.arrivalDelay ?? 0) > 0 && `(+${s.arrivalDelay}')`}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[9px] font-bold text-muted-foreground/70 uppercase w-6 shrink-0">
+                    Par
+                  </span>
                   <p
                     className={cn(
                       "font-mono text-xs transition-colors",

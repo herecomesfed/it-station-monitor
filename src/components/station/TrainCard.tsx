@@ -21,6 +21,7 @@ export default function TrainCard({ train }: { train: Train }) {
 
   const { realtimeData, isLoadingRealtime } = useTrainDetails(
     train.trainNumber,
+    train.station,
     train.operator,
     isOpen,
   );

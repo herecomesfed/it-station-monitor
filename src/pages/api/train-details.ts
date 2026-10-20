@@ -2,32 +2,40 @@ import type { ResponseDto, TrainRealtimeDetails } from "@/types/types";
 import type { APIContext } from "astro";
 import {
   getStationInfo,
-  fetchTrainDetails,
+  findTrainDetails,
 } from "../../services/viaggiatreno.service";
 import { ApiError } from "../../lib/api-error";
 
 /**
  * GET endpoint to retrieve real time train stops
  */
+const TRAIN_NUMBER_REGEX = /^\d{1,6}$/;
+
 export async function GET({ request }: APIContext): Promise<Response> {
   const url = new URL(request.url);
   const trainNumber = url.searchParams.get("trainNumber");
+  // Origin or destination shown on the RFI board, used to pick the right train among homonyms
+  const station = url.searchParams.get("station");
 
   if (!trainNumber) {
     return ApiError.badRequest("Missing trainNumber parameter").toResponse();
   }
 
-  const stationInfo = await getStationInfo(trainNumber);
-
-  if (!stationInfo) {
-    return ApiError.notFound("Train not found").toResponse();
+  if (!TRAIN_NUMBER_REGEX.test(trainNumber)) {
+    return ApiError.badRequest("Invalid trainNumber parameter").toResponse();
   }
 
   try {
-    const realtimeDetails = await fetchTrainDetails(
-      stationInfo.id,
+    const candidates = await getStationInfo(trainNumber);
+
+    if (candidates.length === 0) {
+      return ApiError.notFound("Train not found").toResponse();
+    }
+
+    const realtimeDetails = await findTrainDetails(
+      candidates,
       trainNumber,
-      stationInfo.timestamp,
+      station,
     );
 
     if (!realtimeDetails) {

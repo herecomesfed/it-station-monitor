@@ -1,5 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getStationInfo, fetchTrainDetails } from "./viaggiatreno.service";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import {
+  getStationInfo,
+  fetchTrainDetails,
+  findTrainDetails,
+} from "./viaggiatreno.service";
 import type { TrenitaliaTrainResponse } from "@/types/types";
 import { ApiError } from "@/lib/api-error";
 
@@ -14,16 +18,16 @@ beforeEach(() => {
 // ─── getStationInfo ──────────────────────────────────────────────
 
 describe("getStationInfo", () => {
-  it("should return null for null train number", async () => {
-    expect(await getStationInfo(null)).toBeNull();
+  it("should return empty list for null train number", async () => {
+    expect(await getStationInfo(null)).toEqual([]);
   });
 
-  it("should return null for undefined train number", async () => {
-    expect(await getStationInfo(undefined)).toBeNull();
+  it("should return empty list for undefined train number", async () => {
+    expect(await getStationInfo(undefined)).toEqual([]);
   });
 
-  it("should return null for empty string train number", async () => {
-    expect(await getStationInfo("")).toBeNull();
+  it("should return empty list for empty string train number", async () => {
+    expect(await getStationInfo("")).toEqual([]);
   });
 
   it("should parse valid ViaggiaTreno response", async () => {
@@ -34,52 +38,97 @@ describe("getStationInfo", () => {
     });
 
     const result = await getStationInfo("2064");
-    expect(result).toEqual({
-      id: "S08409",
-      timestamp: "1710500400000",
-    });
+    expect(result).toEqual([
+      {
+        id: "S08409",
+        timestamp: "1710500400000",
+        originName: "ROMA TERMINI",
+      },
+    ]);
   });
 
-  it("should return null for empty API response", async () => {
+  it("should parse every train when the number is shared", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      text: async () =>
+        "25 - MILANO CADORNA - 20/10/26|25-S01066-1792447200000\n" +
+        "25 - CHIASSO - 20/10/26|25-S01301-1792447200000\n",
+    });
+
+    const result = await getStationInfo("25");
+    expect(result).toEqual([
+      { id: "S01066", timestamp: "1792447200000", originName: "MILANO CADORNA" },
+      { id: "S01301", timestamp: "1792447200000", originName: "CHIASSO" },
+    ]);
+  });
+
+  it("should keep dashes inside station names", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      text: async () =>
+        "1234 - ACQUEDOLCI-S.FRATELLO - 20/10/26|1234-S12345-1792447200000",
+    });
+
+    const [result] = await getStationInfo("1234");
+    expect(result.originName).toBe("ACQUEDOLCI-S.FRATELLO");
+  });
+
+  it("should return empty list for empty API response", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       text: async () => "",
     });
 
-    expect(await getStationInfo("9999")).toBeNull();
+    expect(await getStationInfo("9999")).toEqual([]);
   });
 
-  it("should return null for HTTP error", async () => {
+  it("should throw ApiError on HTTP error instead of reporting not found", async () => {
     mockFetch.mockResolvedValue({
       ok: false,
-      status: 500,
+      status: 403,
     });
 
-    expect(await getStationInfo("2064")).toBeNull();
+    await expect(getStationInfo("2064")).rejects.toThrow("ViaggiaTreno HTTP 403");
   });
 
-  it("should return null for malformed response without pipe", async () => {
+  it("should throw ApiError on network error", async () => {
+    mockFetch.mockRejectedValue(new TypeError("fetch failed"));
+
+    await expect(getStationInfo("2064")).rejects.toThrow(ApiError);
+  });
+
+  it("should throw ApiError for malformed response without pipe", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       text: async () => "malformed response without pipe separator",
     });
 
-    expect(await getStationInfo("2064")).toBeNull();
+    await expect(getStationInfo("2064")).rejects.toThrow(ApiError);
   });
 
-  it("should return null if station info has too few parts", async () => {
+  it("should throw ApiError if station info has too few parts", async () => {
     mockFetch.mockResolvedValue({
       ok: true,
       text: async () => "2064 - info|incomplete",
     });
 
-    expect(await getStationInfo("2064")).toBeNull();
+    await expect(getStationInfo("2064")).rejects.toThrow(ApiError);
   });
 });
 
 // ─── fetchTrainDetails — Stop State Logic ────────────────────────
 
 describe("fetchTrainDetails", () => {
+  // Fixtures use March 2024 timestamps: freeze the clock so the ghost train filter keeps them
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(1710507600000));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   function makeFermata(overrides: Record<string, unknown> = {}) {
     return {
       stazione: "TEST STATION",
@@ -216,5 +265,110 @@ describe("fetchTrainDetails", () => {
     await expect(
       fetchTrainDetails("S001", "123", "1710500400000"),
     ).rejects.toThrow(ApiError);
+  });
+
+  it("should throw ApiError on non JSON response", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      text: async () => "<html>Access Denied</html>",
+    });
+
+    await expect(
+      fetchTrainDetails("S001", "123", "1710500400000"),
+    ).rejects.toThrow(ApiError);
+  });
+
+  it("should treat '--' as no detection", async () => {
+    mockTrainResponse([makeFermata()], { stazioneUltimoRilevamento: "--" });
+
+    const result = await fetchTrainDetails("S001", "123", "1710500400000");
+
+    expect(result?.lastDetectionStation).toBeNull();
+  });
+
+  it("should discard trains that terminated more than 3 hours ago", async () => {
+    vi.setSystemTime(new Date(1710507600000 + 4 * 60 * 60 * 1000));
+    mockTrainResponse([
+      makeFermata({ stazione: "A", partenzaReale: 1710500400000 }),
+      makeFermata({ stazione: "B", arrivoReale: 1710507600000 }),
+    ]);
+
+    expect(
+      await fetchTrainDetails("S001", "123", "1710500400000"),
+    ).toBeNull();
+  });
+});
+
+// ─── findTrainDetails — Homonym trains ───────────────────────────
+
+describe("findTrainDetails", () => {
+  const candidates = [
+    { id: "S01066", timestamp: "1792447200000", originName: "MILANO CADORNA" },
+    { id: "S01301", timestamp: "1792447200000", originName: "CHIASSO" },
+  ];
+
+  function trainBody(stations: string[]) {
+    return JSON.stringify({
+      ritardo: 0,
+      stazioneUltimoRilevamento: null,
+      oraUltimoRilevamento: null,
+      fermate: stations.map((stazione) => ({
+        stazione,
+        partenza_teorica: null,
+        arrivo_teorico: null,
+        programmata: null,
+        partenzaReale: null,
+        arrivoReale: null,
+        ritardoPartenza: 0,
+        ritardoArrivo: 0,
+        binarioEffettivoPartenzaDescrizione: null,
+        binarioEffettivoArrivoDescrizione: null,
+      })),
+    });
+  }
+
+  function mockByOrigin(bodies: Record<string, string>) {
+    mockFetch.mockImplementation(async (url: string) => {
+      const origin = Object.keys(bodies).find((id) => url.includes(`/${id}/`));
+      return origin
+        ? { ok: true, text: async () => bodies[origin] }
+        : { ok: false, status: 500 };
+    });
+  }
+
+  it("should use the candidate whose origin matches the hint without fetching the others", async () => {
+    mockByOrigin({ S01301: trainBody(["CHIASSO", "COMO S.G."]) });
+
+    const result = await findTrainDetails(candidates, "25", "Chiasso");
+
+    expect(result?.stops[0].station).toBe("CHIASSO");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("should pick the candidate that stops at the hinted destination", async () => {
+    mockByOrigin({
+      S01066: trainBody(["MILANO CADORNA", "SARONNO"]),
+      S01301: trainBody(["CHIASSO", "COMO S.G."]),
+    });
+
+    const result = await findTrainDetails(candidates, "25", "Saronno");
+
+    expect(result?.stops[0].station).toBe("MILANO CADORNA");
+  });
+
+  it("should fall back to the first available candidate", async () => {
+    mockByOrigin({ S01301: trainBody(["CHIASSO", "COMO S.G."]) });
+
+    const result = await findTrainDetails(candidates, "25", "Roma Termini");
+
+    expect(result?.stops[0].station).toBe("CHIASSO");
+  });
+
+  it("should propagate the upstream error when every candidate fails", async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 403 });
+
+    await expect(findTrainDetails(candidates, "25", null)).rejects.toThrow(
+      "ViaggiaTreno HTTP 403",
+    );
   });
 });

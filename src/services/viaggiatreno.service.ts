@@ -22,57 +22,163 @@ const GET_LIVE_INFO_BASE_URL =
   "http://www.viaggiatreno.it/infomobilita/resteasy/viaggiatreno/andamentoTreno";
 const EXPECTED_TRENITALIA_RESPONSE_LENGTH = 2;
 const EXPECTED_TRENITALIA_STATION_INFO_RESPONSE_LENGTH = 3;
+const REQUEST_TIMEOUT_MS = 8000;
+// ViaggiaTreno uses "--" as placeholder when the train has not been detected yet
+const NO_DETECTION_PLACEHOLDER = "--";
 
 /**
- * Gets the station info by train number from ViaggiaTreno autocomplete API
+ * Performs a GET to ViaggiaTreno and returns the raw body.
+ * Upstream failures are raised as ApiError so they are not mistaken for "train not found".
+ * @param url the ViaggiaTreno url
+ * @returns the response body as text
+ */
+async function fetchViaggiaTreno(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: HEADERS,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  }).catch((e: unknown) => {
+    console.error(`ViaggiaTreno network error on ${url}`, e);
+    throw ApiError.badGateway("ViaggiaTreno unreachable");
+  });
+
+  if (!res.ok) {
+    console.warn(`ViaggiaTreno HTTP ${res.status} on ${url}`);
+    throw ApiError.badGateway(`ViaggiaTreno HTTP ${res.status}`);
+  }
+
+  return res.text();
+}
+
+/**
+ * Parses a single autocomplete line
+ * @param line "{trainNumber} - {stationName} - {currentDate}|{trainNumber}-{stationId}-{timestamp}"
+ * @returns TrenitaliaStationInfo or null if the line is malformed
+ */
+function parseStationInfoLine(line: string): TrenitaliaStationInfo | null {
+  // Get parts: ["{trainNumber} - {stationName} - {currentDate}", "{trainNumber}-{stationId}-{timestamp}"]
+  const parts = line.split("|");
+  if (parts.length < EXPECTED_TRENITALIA_RESPONSE_LENGTH) {
+    return null;
+  }
+
+  // Get useful info: ["{trainNumber}", "{stationId}", "{timestamp}"]
+  const stationInfo = parts[1].trim().split("-");
+  if (stationInfo.length < EXPECTED_TRENITALIA_STATION_INFO_RESPONSE_LENGTH) {
+    return null;
+  }
+
+  // Station names may contain "-", so take everything between the first and the last " - "
+  const label = parts[0].split(" - ");
+  const originName = label.length >= 3 ? label.slice(1, -1).join(" - ").trim() : null;
+
+  return {
+    id: stationInfo[1],
+    timestamp: stationInfo[2],
+    originName,
+  };
+}
+
+/**
+ * Gets all the trains matching a train number from ViaggiaTreno autocomplete API.
+ * The same number can be shared by different trains (one line per train).
  * @param trainNumber the train number
- * @returns TrenitaliaStationInfo containing station id and timestamp, or null
+ * @returns the list of matching TrenitaliaStationInfo, empty if the train is not found
  */
 export async function getStationInfo(
   trainNumber: string | null | undefined,
-): Promise<TrenitaliaStationInfo | null> {
-  if (!trainNumber) return null;
+): Promise<TrenitaliaStationInfo[]> {
+  if (!trainNumber) return [];
 
-  const res = await fetch(`${GET_TRAIN_NUMBER_BASE_URL}/${trainNumber}`, {
-    headers: HEADERS,
-  });
+  /**
+   * Response pattern by Viaggiatreno, one line per matching train:
+   * {trainNumber} - {stationName} - {currentDate}|{trainNumber}-{stationId}-{timestamp}
+   */
+  const data = await fetchViaggiaTreno(
+    `${GET_TRAIN_NUMBER_BASE_URL}/${encodeURIComponent(trainNumber)}`,
+  );
 
-  try {
-    if (!res.ok) {
-      console.warn(`ViaggiaTreno HTTP Error: ${res.status}`);
-      return null;
-    }
+  const lines = data
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
 
-    /**
-     * Response pattern by Viaggiatreno:
-     * {trainNumber} - {stationName} - {currentDate}|{trainNumber}-{stationId}-{timestamp}
-     */
-    const data: string = await res.text();
+  const candidates = lines
+    .map(parseStationInfoLine)
+    .filter((info): info is TrenitaliaStationInfo => info !== null);
 
-    if (!data || data.trim() === "") {
-      return null;
-    }
+  // A non empty body that we cannot parse means ViaggiaTreno changed format or served a block page
+  if (lines.length > 0 && candidates.length === 0) {
+    console.warn(`Unexpected ViaggiaTreno autocomplete response: ${data.slice(0, 200)}`);
+    throw ApiError.badGateway("Unexpected ViaggiaTreno response");
+  }
 
-    // Get parts: ["{trainNumber} - {stationName} - {currentDate}", "{trainNumber}-{stationId}-{timestamp}"]
-    const parts = data.split("|");
-    if (parts.length < EXPECTED_TRENITALIA_RESPONSE_LENGTH) {
-      return null;
-    }
+  return candidates;
+}
 
-    // Get useful info: ["{trainNumber}", "{stationId}", "{timestamp}"]
-    const stationInfo = parts[1].trim().split("-");
-    if (stationInfo.length < EXPECTED_TRENITALIA_STATION_INFO_RESPONSE_LENGTH) {
-      return null;
-    }
+/**
+ * Normalizes a station name to compare RFI and ViaggiaTreno names
+ * @param name the station name
+ * @returns the normalized name
+ */
+const normalizeStationName = (name: string) =>
+  name.toUpperCase().replace(/[^A-Z0-9]/g, "");
 
-    return {
-      id: stationInfo[1],
-      timestamp: stationInfo[2],
-    };
-  } catch (e) {
-    console.error("Error during station info recover", e);
+/**
+ * Resolves the real-time details when a train number matches more trains.
+ * Picks the train that stops at the given station, falling back to the first available one.
+ * @param candidates the trains returned by getStationInfo
+ * @param trainNumber the train number
+ * @param stationHint a station the train is known to stop at (origin or destination from RFI)
+ * @returns TrainRealtimeDetails or null if no candidate has data
+ */
+export async function findTrainDetails(
+  candidates: TrenitaliaStationInfo[],
+  trainNumber: string,
+  stationHint?: string | null,
+): Promise<TrainRealtimeDetails | null> {
+  const hint = stationHint ? normalizeStationName(stationHint) : null;
+
+  // Arrivals board gives the origin, which the autocomplete already exposes
+  const originMatch =
+    hint &&
+    candidates.find(
+      (c) => c.originName && normalizeStationName(c.originName) === hint,
+    );
+  const single = candidates.length === 1 ? candidates[0] : originMatch;
+
+  if (single) {
+    return fetchTrainDetails(single.id, trainNumber, single.timestamp);
+  }
+
+  const results = await Promise.allSettled(
+    candidates.map((c) => fetchTrainDetails(c.id, trainNumber, c.timestamp)),
+  );
+
+  const available = results
+    .filter(
+      (r): r is PromiseFulfilledResult<TrainRealtimeDetails | null> =>
+        r.status === "fulfilled",
+    )
+    .map((r) => r.value)
+    .filter((d): d is TrainRealtimeDetails => d !== null);
+
+  // Every call failed: propagate the upstream error
+  if (available.length === 0) {
+    const failure = results.find(
+      (r): r is PromiseRejectedResult => r.status === "rejected",
+    );
+    if (failure) throw failure.reason;
     return null;
   }
+
+  if (hint) {
+    const match = available.find((d) =>
+      d.stops.some((s) => normalizeStationName(s.station) === hint),
+    );
+    if (match) return match;
+  }
+
+  return available[0];
 }
 
 /**
@@ -87,25 +193,16 @@ export async function fetchTrainDetails(
   trainNumber: string,
   timestamp: string,
 ): Promise<TrainRealtimeDetails | null> {
-  const res = await fetch(
-    `${GET_LIVE_INFO_BASE_URL}/${stationId}/${trainNumber}/${timestamp}`,
-    {
-      headers: HEADERS,
-    },
-  );
-
-  if (!res.ok) {
-    throw ApiError.badGateway(`ViaggiaTreno HTTP ${res.status}`);
-  }
-
   // Extract raw text to avoid invalid JSON response by Viaggiatreno
-  const rawText = await res.text();
+  const rawText = await fetchViaggiaTreno(
+    `${GET_LIVE_INFO_BASE_URL}/${stationId}/${encodeURIComponent(trainNumber)}/${timestamp}`,
+  );
 
   if (!rawText || rawText.trim() === "") {
     throw ApiError.serviceUnavailable("ViaggiaTreno returned empty response");
   }
 
-  const data: TrenitaliaTrainResponse = JSON.parse(rawText);
+  const data = parseTrainResponse(rawText);
 
   // Ghost train filter: discard responses for trips that ended over 3 hours ago
   // This prevents stale data from the previous day around midnight
@@ -241,8 +338,30 @@ export async function fetchTrainDetails(
   return {
     totalDelay: data.ritardo || 0,
     hasDeparted: currentTrainIndex !== -1,
-    lastDetectionStation: data.stazioneUltimoRilevamento || null,
+    lastDetectionStation:
+      data.stazioneUltimoRilevamento &&
+      data.stazioneUltimoRilevamento !== NO_DETECTION_PLACEHOLDER
+        ? data.stazioneUltimoRilevamento
+        : null,
     lastDetectionTime: data.oraUltimoRilevamento || null,
     stops,
   };
+}
+
+/**
+ * Parses the andamentoTreno body, raising an ApiError if it is not the expected JSON
+ * @param rawText the raw response body
+ * @returns the parsed TrenitaliaTrainResponse
+ */
+function parseTrainResponse(rawText: string): TrenitaliaTrainResponse {
+  try {
+    const data: TrenitaliaTrainResponse = JSON.parse(rawText);
+    if (!Array.isArray(data.fermate)) {
+      throw new Error("Missing fermate");
+    }
+    return data;
+  } catch (e) {
+    console.warn(`Unexpected ViaggiaTreno train response: ${rawText.slice(0, 200)}`, e);
+    throw ApiError.badGateway("Unexpected ViaggiaTreno response");
+  }
 }

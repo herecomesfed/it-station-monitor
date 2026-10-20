@@ -11,11 +11,13 @@ interface UseTrainDetailsReturn {
  * Polls every 60 seconds while isOpen is true.
  * Resets on close so data is fresh on reopen.
  * @param trainNumber the train number
+ * @param station the origin or destination shown on the board, used to disambiguate homonym trains
  * @param operator the train operator
  * @param isOpen whether the detail panel is open
  */
 export function useTrainDetails(
   trainNumber: string,
+  station: string,
   operator: string | undefined,
   isOpen: boolean,
 ): UseTrainDetailsReturn {
@@ -53,9 +55,8 @@ export function useTrainDetails(
       }
 
       try {
-        const res = await fetch(
-          `/api/train-details?trainNumber=${trainNumber}`,
-        );
+        const params = new URLSearchParams({ trainNumber, station });
+        const res = await fetch(`/api/train-details?${params}`);
         const json = await res.json();
 
         if (json.success && json.data && isMounted) {
@@ -85,7 +86,7 @@ export function useTrainDetails(
       isMounted = false;
       clearInterval(intervalId);
     };
-  }, [isOpen, hasAttemptedFetch, trainNumber, operator]);
+  }, [isOpen, hasAttemptedFetch, trainNumber, station, operator]);
 
   return { realtimeData, isLoadingRealtime };
 }

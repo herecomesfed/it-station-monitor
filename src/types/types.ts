@@ -37,6 +37,7 @@ export interface ResponseDto<T> {
 export interface TrenitaliaStationInfo {
   id: string;
   timestamp: string;
+  originName: string | null;
 }
 
 /** Current state of a train at a given stop */
